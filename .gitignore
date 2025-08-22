@@ -1,4 +1,5 @@
 .specstory
+.specstory/history
 .vscode
 .cursorindexingignore
 discrete_algorithms/
