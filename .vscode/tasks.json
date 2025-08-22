@@ -1,0 +1,60 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "Run Streamlit App",
+            "type": "shell",
+            "command": "uv",
+            "args": [
+                "run",
+                "streamlit",
+                "run",
+                "${file}"
+            ],
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "options": {
+                "cwd": "${workspaceFolder}"
+            },
+            "detail": "Run Streamlit app using uv run streamlit"
+        },
+        {
+            "label": "Run Streamlit App (Current Directory)",
+            "type": "shell",
+            "command": "uv",
+            "args": [
+                "run",
+                "streamlit",
+                "run",
+                "${file}",
+                "--server.port",
+                "8501"
+            ],
+            "group": "build",
+            "presentation": {
+                "echo": true,
+                "reveal": "always",
+                "focus": false,
+                "panel": "shared",
+                "showReuseMessage": true,
+                "clear": false
+            },
+            "problemMatcher": [],
+            "options": {
+                "cwd": "${fileDirname}"
+            },
+            "detail": "Run Streamlit app from current directory using uv run streamlit"
+        }
+    ]
+}

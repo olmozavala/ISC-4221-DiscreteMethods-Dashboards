@@ -1,0 +1,17 @@
+{
+    "python.defaultInterpreterPath": "${workspaceFolder}/.venv/bin/python",
+    "python.terminal.activateEnvironment": true,
+    "code-runner.executorMap": {
+        "python": "uv run streamlit run"
+    },
+    "code-runner.runInTerminal": true,
+    "code-runner.saveFileBeforeRun": true,
+    "python.linting.enabled": true,
+    "python.linting.pylintEnabled": false,
+    "python.linting.flake8Enabled": true,
+    "python.formatting.provider": "black",
+    "editor.formatOnSave": true,
+    "python.analysis.typeCheckingMode": "basic",
+    "python.terminal.executeInFileDir": false,
+    "python.terminal.activateEnvInCurrentTerminal": true
+}
