@@ -130,6 +130,7 @@ app.layout = dbc.Container([
     html.Div(id='sort-steps', style={'display': 'none'}),
     html.Div(id='current-step', style={'display': 'none'}),
     html.Div(id='search-array', style={'display': 'none'}),
+    html.Div(id='current-search-array', style={'display': 'none'}),
     html.Div(id='dashboard-selector', style={'display': 'none'}, children='sorting'),
     
     # Main container with sidebar and content
@@ -204,6 +205,44 @@ def update_dashboard(sorting_clicks, search_clicks, coin_clicks, complexity_clic
         return create_strategy_dashboard()
     else:
         return create_sorting_dashboard()  # Default to sorting
+
+@app.callback(
+    [Output('nav-sorting', 'active'),
+     Output('nav-search', 'active'),
+     Output('nav-coin-change', 'active'),
+     Output('nav-complexity', 'active'),
+     Output('nav-strategy', 'active')],
+    [Input('nav-sorting', 'n_clicks'),
+     Input('nav-search', 'n_clicks'),
+     Input('nav-coin-change', 'n_clicks'),
+     Input('nav-complexity', 'n_clicks'),
+     Input('nav-strategy', 'n_clicks')]
+)
+def update_nav_active_states(sorting_clicks, search_clicks, coin_clicks, complexity_clicks, strategy_clicks):
+    """Update the active states of navigation tabs."""
+    
+    ctx = callback_context
+    if not ctx.triggered:
+        # Default to sorting being active
+        return True, False, False, False, False
+    
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    # Set all to False first, then set the active one to True
+    active_states = [False, False, False, False, False]
+    
+    if button_id == 'nav-sorting':
+        active_states[0] = True
+    elif button_id == 'nav-search':
+        active_states[1] = True
+    elif button_id == 'nav-coin-change':
+        active_states[2] = True
+    elif button_id == 'nav-complexity':
+        active_states[3] = True
+    elif button_id == 'nav-strategy':
+        active_states[4] = True
+    
+    return active_states
 
 def create_sorting_dashboard() -> dbc.Container:
     """Create the sorting visualizer dashboard."""
@@ -328,18 +367,31 @@ def create_search_dashboard() -> dbc.Container:
                                 type='number', 
                                 value=50, 
                                 min=1, 
-                                max=100
+                                max=100,
+                                placeholder="Enter target value"
                             )
                         ], className="mb-3"),
                         
                         dbc.Button("Generate Sorted Array", id='generate-search-array-btn', 
-                                 n_clicks=0, color="primary", className="w-100")
+                                 n_clicks=0, color="primary", className="mb-2 w-100"),
+                        dbc.Button("Run Search", id='run-search-btn', 
+                                 n_clicks=0, color="success", className="w-100")
                     ])
                 ])
             ], width=3),
             
-            # Results
+            # Array Display and Results
             dbc.Col([
+                # Array Display
+                dbc.Card([
+                    dbc.CardHeader("Generated Sorted Array"),
+                    dbc.CardBody([
+                        html.Div(id='search-array-display', className="p-3 bg-light rounded"),
+                        dcc.Graph(id='search-array-graph', style={'height': '300px'})
+                    ])
+                ], className="mb-3"),
+                
+                # Search Results
                 dbc.Card([
                     dbc.CardHeader("Search Results"),
                     dbc.CardBody([
@@ -724,18 +776,148 @@ def update_step(prev_clicks: int, next_clicks: int, sort_clicks: int, steps_str:
 # Callbacks for search dashboard
 @app.callback(
     [Output('search-array', 'children'),
+     Output('current-search-array', 'children'),
+     Output('search-array-display', 'children'),
+     Output('search-array-graph', 'figure'),
      Output('search-results', 'children'),
      Output('search-comparison-graph', 'figure')],
     [Input('generate-search-array-btn', 'n_clicks')],
     [State('search-array-size', 'value'),
      State('search-target', 'value')]
 )
-def generate_search_array_and_results(n_clicks: int, array_size: int, target: int) -> Tuple[str, html.Div, go.Figure]:
+def generate_search_array_and_results(generate_clicks: int, array_size: int, target: int) -> Tuple[str, str, html.Div, go.Figure, html.Div, go.Figure]:
     """Generate a sorted array and perform search comparisons."""
-    if n_clicks == 0:
+    if generate_clicks == 0:
         raise PreventUpdate
     
+    # Validate inputs
+    if target is None:
+        target = 50  # Default value
+    if array_size is None:
+        array_size = 20  # Default value
+    
+    # Generate sorted array
     array = sorted(generate_random_array(array_size))
+    array_display_text = f"Sorted Array: {array}"
+    
+    # Perform searches
+    seq_result, seq_steps = sequential_search(array, target)
+    bin_result, bin_steps = binary_search(array, target)
+    
+    # Create array display
+    array_display = html.Div([
+        html.H5("Array Contents:", className="mb-2"),
+        html.P(array_display_text, className="font-monospace"),
+        html.Hr(),
+        html.P(f"Array Size: {len(array)}", className="mb-1"),
+        html.P(f"Search Target: {target}", className="mb-1"),
+        html.P(f"Target Found: {'Yes' if target in array else 'No'}", className="mb-0")
+    ])
+    
+    # Create array visualization
+    array_fig = go.Figure()
+    array_fig.add_trace(go.Bar(
+        x=list(range(len(array))),
+        y=array,
+        text=array,
+        textposition='outside',
+        textfont=dict(size=12, color='black'),
+        marker_color='lightblue',
+        name='Array Values'
+    ))
+    
+    # Highlight target if found
+    if target in array:
+        target_indices = [i for i, val in enumerate(array) if val == target]
+        for idx in target_indices:
+            array_fig.add_trace(go.Bar(
+                x=[idx],
+                y=[array[idx]],
+                text=[array[idx]],
+                textposition='outside',
+                textfont=dict(size=12, color='white'),
+                marker_color='red',
+                name='Target Value',
+                showlegend=False
+            ))
+    
+    array_fig.update_layout(
+        title="Array Visualization",
+        xaxis_title="Index",
+        yaxis_title="Value",
+        height=300,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(size=12),
+        showlegend=True
+    )
+    
+    # Create results display
+    results = dbc.Row([
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader("Sequential Search (Brute Force)"),
+                dbc.CardBody([
+                    html.P(f"Result: {seq_result}"),
+                    html.P(f"Steps: {len(seq_steps)}"),
+                    html.P(f"Complexity: O(n)")
+                ])
+            ])
+        ], width=6),
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader("Binary Search (Decrease & Conquer)"),
+                dbc.CardBody([
+                    html.P(f"Result: {bin_result}"),
+                    html.P(f"Steps: {len(bin_steps)}"),
+                    html.P(f"Complexity: O(log n)")
+                ])
+            ])
+        ], width=6)
+    ])
+    
+    # Create comparison chart
+    sizes = list(range(10, 101, 10))
+    seq_complexity = sizes
+    bin_complexity = [np.log2(size) for size in sizes]
+    
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=sizes, y=seq_complexity, name="Sequential Search O(n)", line=dict(color='red')))
+    fig.add_trace(go.Scatter(x=sizes, y=bin_complexity, name="Binary Search O(log n)", line=dict(color='green')))
+    fig.update_layout(
+        title="Performance Comparison",
+        xaxis_title="Array Size",
+        yaxis_title="Number of Steps",
+        height=400,
+        plot_bgcolor='white',
+        paper_bgcolor='white',
+        font=dict(size=12)
+    )
+    
+    return str(array), str(array), array_display, array_fig, results, fig
+
+@app.callback(
+    [Output('search-results', 'children', allow_duplicate=True),
+     Output('search-comparison-graph', 'figure', allow_duplicate=True)],
+    [Input('run-search-btn', 'n_clicks')],
+    [State('current-search-array', 'children'),
+     State('search-target', 'value')],
+    prevent_initial_call=True
+)
+def run_search_on_existing_array(search_clicks: int, stored_array: str, target: int) -> Tuple[html.Div, go.Figure]:
+    """Run search algorithms on the existing array with a new target."""
+    if search_clicks == 0 or not stored_array:
+        raise PreventUpdate
+    
+    # Validate target input
+    if target is None:
+        target = 50  # Default value
+    
+    # Parse the stored array
+    try:
+        array = eval(stored_array)  # Convert string back to list
+    except:
+        raise PreventUpdate
     
     # Perform searches
     seq_result, seq_steps = sequential_search(array, target)
@@ -783,7 +965,7 @@ def generate_search_array_and_results(n_clicks: int, array_size: int, target: in
         font=dict(size=12)
     )
     
-    return str(array), results, fig
+    return results, fig
 
 # Callbacks for coin change dashboard
 @app.callback(
