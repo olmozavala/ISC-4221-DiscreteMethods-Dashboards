@@ -1475,7 +1475,7 @@ def update_strategy_recommendation(problem_type: str, controls_children) -> Tupl
     
     elif problem_type == 'optimization':
         recommendation = "**Try Greedy First, then Dynamic Programming** - Empirical approach"
-        reason = "Start with greedy for speed, then use more sophisticated methods if needed. This approach balances efficiency with optimality."
+        reason = "Start with greedy for speed, then use more sophisticated methods if needed. This approach balances efficiency with optimalityt ."
     
     else:
         recommendation = "Select a problem type to get a recommendation."
