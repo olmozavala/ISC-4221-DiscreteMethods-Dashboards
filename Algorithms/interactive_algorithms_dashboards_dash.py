@@ -344,8 +344,9 @@ def create_search_dashboard() -> dbc.Container:
         ], className="mb-4"),
         
         dbc.Row([
-            # Controls
+            # Controls and Algorithm Code
             dbc.Col([
+                # Controls
                 dbc.Card([
                     dbc.CardHeader("Controls"),
                     dbc.CardBody([
@@ -376,6 +377,18 @@ def create_search_dashboard() -> dbc.Container:
                                  n_clicks=0, color="primary", className="mb-2 w-100"),
                         dbc.Button("Run Search", id='run-search-btn', 
                                  n_clicks=0, color="success", className="w-100")
+                    ])
+                ], className="mb-3"),
+                
+                # Algorithm Code Section
+                dbc.Card([
+                    dbc.CardHeader([
+                        html.Span("Algorithm Code", className="me-2"),
+                        dbc.Button("Show Code", id='toggle-code-btn', 
+                                 n_clicks=0, size="sm", color="outline-secondary")
+                    ], className="d-flex justify-content-between align-items-center"),
+                    dbc.CardBody([
+                        html.Div(id='algorithm-code-content', style={'display': 'none'})
                     ])
                 ])
             ], width=3),
@@ -556,9 +569,7 @@ def create_strategy_dashboard() -> dbc.Container:
                                 options=[
                                     {'label': 'Sorting', 'value': 'sorting'},
                                     {'label': 'Searching', 'value': 'searching'},
-                                    {'label': 'Optimization', 'value': 'optimization'},
-                                    {'label': 'Path Finding', 'value': 'path-finding'},
-                                    {'label': 'Data Processing', 'value': 'data-processing'}
+                                    {'label': 'Optimization', 'value': 'optimization'}
                                 ],
                                 value='sorting'
                             )
@@ -967,6 +978,243 @@ def run_search_on_existing_array(search_clicks: int, stored_array: str, target: 
     
     return results, fig
 
+# Callback to update strategy recommendation based on problem-specific controls
+@app.callback(
+    Output('strategy-recommendation', 'children', allow_duplicate=True),
+    [Input('problem-type', 'value')],
+    [State('problem-specific-controls', 'children')],
+    prevent_initial_call=True
+)
+def update_strategy_based_on_controls(problem_type: str, controls_children) -> html.Div:
+    """Update strategy recommendation when problem-specific controls change."""
+    
+    # Helper function to extract values from controls HTML
+    def extract_value_from_controls(controls_html, component_id):
+        """Extract value from controls HTML by looking for component ID."""
+        if not controls_html:
+            return None
+        
+        # Convert to string if it's a component
+        controls_str = str(controls_html)
+        
+        # Look for the component ID and extract its value
+        if component_id in controls_str:
+            # This is a simplified approach - we'll use default values for now
+            return "default"
+        return None
+    
+    if problem_type == 'sorting':
+        # Extract values from sorting controls
+        data_size = extract_value_from_controls(controls_children, 'sorting-data-size')
+        data_type = extract_value_from_controls(controls_children, 'sorting-data-type')
+        memory_constraint = extract_value_from_controls(controls_children, 'memory-constraint')
+        
+        # Provide specific recommendations based on typical values
+        if data_size == "default":
+            recommendation = "**Quick Sort or Merge Sort** - Recommended for typical datasets"
+            reason = "For most sorting scenarios, Quick Sort (average O(n log n)) or Merge Sort (guaranteed O(n log n)) provide excellent performance. Quick Sort is often faster in practice, while Merge Sort guarantees consistent performance."
+        else:
+            recommendation = "**Quick Sort or Merge Sort** - Efficient for large datasets"
+            reason = "These divide-and-conquer algorithms provide O(n log n) average/worst-case performance, making them ideal for most sorting tasks."
+        
+    elif problem_type == 'searching':
+        # Extract values from searching controls
+        data_status = extract_value_from_controls(controls_children, 'data-status')
+        search_frequency = extract_value_from_controls(controls_children, 'search-frequency')
+        
+        if data_status == "sorted" or data_status == "default":
+            recommendation = "**Binary Search** - Optimal for sorted data"
+            reason = "Binary Search provides O(log n) performance on sorted data, making it the optimal choice for searching in sorted arrays."
+        else:
+            recommendation = "**Sequential Search** - Simple and effective for unsorted data"
+            reason = "For unsorted data, Sequential Search is straightforward and doesn't require preprocessing. Consider sorting first if you'll search frequently."
+        
+    elif problem_type == 'optimization':
+        # Extract values from optimization controls
+        problem_nature = extract_value_from_controls(controls_children, 'problem-nature')
+        
+        if problem_nature == "greedy-works":
+            recommendation = "**Greedy Algorithm** - Fast and often optimal"
+            reason = "When greedy choices lead to optimal solutions, these algorithms are very efficient and straightforward to implement."
+        elif problem_nature == "greedy-fails":
+            recommendation = "**Dynamic Programming or Branch and Bound** - Guaranteed optimal"
+            reason = "When greedy fails, we need algorithms that explore multiple solution paths to guarantee optimal solutions."
+        else:
+            recommendation = "**Try Greedy First, then Dynamic Programming** - Empirical approach"
+            reason = "Start with greedy for speed, then use more sophisticated methods if needed. This approach balances efficiency with optimality."
+        
+    else:
+        recommendation = "Select a problem type to get a recommendation."
+        reason = ""
+    
+    return dbc.Card([
+        dbc.CardHeader("Recommendation"),
+        dbc.CardBody([
+            html.H5("Recommendation:"),
+            html.P(recommendation, className="font-weight-bold text-primary"),
+            html.H5("Reason:"),
+            html.P(reason, className="text-muted")
+        ])
+    ])
+
+# Separate callbacks for each problem type to handle dynamic components
+@app.callback(
+    Output('strategy-recommendation', 'children', allow_duplicate=True),
+    [Input('sorting-data-size', 'value'),
+     Input('sorting-data-type', 'value'),
+     Input('memory-constraint', 'value')],
+    prevent_initial_call=True
+)
+def update_sorting_recommendation(data_size, data_type, memory_constraint):
+    """Update recommendation specifically for sorting problems."""
+    if data_size is None:
+        return dash.no_update
+    
+    # Provide specific recommendations based on actual parameter values
+    if data_size < 50:
+        recommendation = "**Insertion Sort** - Simple and efficient for small datasets"
+        reason = f"For small datasets ({data_size} elements), simple algorithms like Insertion Sort often outperform complex ones due to lower overhead. Time complexity: O(n²) but very fast for small n."
+    elif data_type == 'nearly-sorted':
+        recommendation = "**Bubble Sort** - Excellent for nearly sorted data"
+        reason = f"Bubble Sort can be very efficient when data is nearly sorted, often achieving O(n) performance instead of O(n²). Perfect for data that's already mostly in order."
+    elif memory_constraint:
+        recommendation = "**Selection Sort** - In-place sorting with minimal memory"
+        reason = f"Selection Sort uses constant extra space O(1) regardless of input size ({data_size} elements). Ideal when memory is severely constrained."
+    elif data_type == 'duplicates':
+        recommendation = "**Quick Sort with 3-way partitioning** - Efficient for data with many duplicates"
+        reason = f"Standard Quick Sort can degrade to O(n²) with many duplicates. 3-way partitioning handles duplicates efficiently, maintaining O(n log n) average performance."
+    elif data_size > 10000:
+        recommendation = "**Merge Sort** - Guaranteed performance for large datasets"
+        reason = f"For large datasets ({data_size} elements), Merge Sort's guaranteed O(n log n) performance and stability make it a reliable choice."
+    else:
+        recommendation = "**Quick Sort** - Fast average-case performance"
+        reason = f"For typical datasets ({data_size} elements), Quick Sort's average O(n log n) performance and in-place operation make it an excellent choice."
+    
+    return dbc.Card([
+        dbc.CardHeader("Recommendation"),
+        dbc.CardBody([
+            html.H5("Recommendation:"),
+            html.P(recommendation, className="font-weight-bold text-primary"),
+            html.H5("Reason:"),
+            html.P(reason, className="text-muted")
+        ])
+    ])
+
+@app.callback(
+    Output('strategy-recommendation', 'children', allow_duplicate=True),
+    [Input('data-status', 'value'),
+     Input('search-frequency', 'value')],
+    prevent_initial_call=True
+)
+def update_searching_recommendation(data_status, search_frequency):
+    """Update recommendation specifically for searching problems."""
+    if data_status is None:
+        return dash.no_update
+    
+    if data_status == 'sorted':
+        recommendation = "**Binary Search** - Optimal for sorted data"
+        reason = "Binary Search provides O(log n) performance on sorted data, making it the optimal choice for searching in sorted arrays."
+    elif search_frequency == 'frequent':
+        recommendation = "**Sort first, then Binary Search** - Transform and Conquer"
+        reason = "For frequent searches, the O(n log n) cost of sorting is amortized over multiple O(log n) searches. More efficient than repeated O(n) sequential searches."
+    else:
+        recommendation = "**Sequential Search** - Simple and no preprocessing needed"
+        reason = "For one-time searches on unsorted data, Sequential Search is straightforward and doesn't require preprocessing."
+    
+    return dbc.Card([
+        dbc.CardHeader("Recommendation"),
+        dbc.CardBody([
+            html.H5("Recommendation:"),
+            html.P(recommendation, className="font-weight-bold text-primary"),
+            html.H5("Reason:"),
+            html.P(reason, className="text-muted")
+        ])
+    ])
+
+@app.callback(
+    Output('strategy-recommendation', 'children', allow_duplicate=True),
+    [Input('problem-nature', 'value')],
+    prevent_initial_call=True
+)
+def update_optimization_recommendation(problem_nature):
+    """Update recommendation specifically for optimization problems."""
+    if problem_nature is None:
+        return dash.no_update
+    
+    if problem_nature == 'greedy-works':
+        recommendation = "**Greedy Algorithm** - Fast and often optimal"
+        reason = "When greedy choices lead to optimal solutions, these algorithms are very efficient and straightforward to implement."
+    elif problem_nature == 'greedy-fails':
+        recommendation = "**Dynamic Programming or Branch and Bound** - Guaranteed optimal"
+        reason = "When greedy fails, we need algorithms that explore multiple solution paths to guarantee optimal solutions."
+    else:
+        recommendation = "**Try Greedy First, then Dynamic Programming** - Empirical approach"
+        reason = "Start with greedy for speed, then use more sophisticated methods if needed. This approach balances efficiency with optimality."
+    
+    return dbc.Card([
+        dbc.CardHeader("Recommendation"),
+        dbc.CardBody([
+            html.H5("Recommendation:"),
+            html.P(recommendation, className="font-weight-bold text-primary"),
+            html.H5("Reason:"),
+            html.P(reason, className="text-muted")
+        ])
+    ])
+
+# Callback for toggling algorithm code visibility
+@app.callback(
+    [Output('toggle-code-btn', 'children'),
+     Output('algorithm-code-content', 'children'),
+     Output('algorithm-code-content', 'style')],
+    [Input('toggle-code-btn', 'n_clicks')]
+)
+def toggle_algorithm_code(n_clicks: int) -> Tuple[str, html.Div, Dict[str, str]]:
+    """Toggle the visibility of algorithm code."""
+    if n_clicks is None or n_clicks == 0:
+        # Default state: hidden
+        return "Show Code", html.Div(), {'display': 'none'}
+    
+    if n_clicks % 2 == 1:
+        # Show code
+        code_content = html.Div([
+            # Sequential Search Code
+            html.Div([
+                html.H6("Sequential Search (Brute Force)", className="text-primary mb-2"),
+                html.Pre("""
+def sequential_search(arr, target):
+    for i, val in enumerate(arr):
+        if val == target:
+            return i
+    return -1
+                """.strip(), className="bg-light p-2 rounded font-monospace small"),
+                html.P("Time Complexity: O(n)", className="text-muted small mt-1")
+            ], className="mb-3"),
+            
+            # Binary Search Code
+            html.Div([
+                html.H6("Binary Search (Decrease & Conquer)", className="text-success mb-2"),
+                html.Pre("""
+def binary_search(arr, target):
+    left, right = 0, len(arr) - 1
+    
+    while left <= right:
+        mid = (left + right) // 2
+        if arr[mid] == target:
+            return mid
+        elif arr[mid] < target:
+            left = mid + 1
+        else:
+            right = mid - 1
+    return -1
+                """.strip(), className="bg-light p-2 rounded font-monospace small"),
+                html.P("Time Complexity: O(log n)", className="text-muted small mt-1")
+            ])
+        ])
+        return "Hide Code", code_content, {'display': 'block'}
+    else:
+        # Hide code
+        return "Show Code", html.Div(), {'display': 'none'}
+
 # Callbacks for coin change dashboard
 @app.callback(
     [Output('coin-change-results', 'children'),
@@ -1211,62 +1459,23 @@ def update_problem_controls(problem_type: str) -> html.Div:
     [Output('strategy-recommendation', 'children'),
      Output('strategy-comparison-table', 'children')],
     [Input('problem-type', 'value'),
-     Input('sorting-data-size', 'value'),
-     Input('sorting-data-type', 'value'),
-     Input('memory-constraint', 'value'),
-     Input('searching-data-size', 'value'),
-     Input('data-status', 'value'),
-     Input('search-frequency', 'value'),
-     Input('optimization-size', 'value'),
-     Input('problem-nature', 'value')]
+     Input('problem-specific-controls', 'children')]
 )
-def update_strategy_recommendation(problem_type: str, *args) -> Tuple[html.Div, html.Div]:
+def update_strategy_recommendation(problem_type: str, controls_children) -> Tuple[html.Div, html.Div]:
     """Update strategy recommendation based on problem parameters."""
+    
+    # Initial recommendation based on problem type
     if problem_type == 'sorting':
-        data_size = args[0] or 1000
-        data_type = args[1] or 'random'
-        memory_constraint = args[2] or False
-        
-        if data_size < 50:
-            recommendation = "**Insertion Sort** - Simple and efficient for small datasets"
-            reason = "For small datasets, simple algorithms often outperform complex ones due to lower overhead."
-        elif data_size < 1000 and data_type == 'nearly-sorted':
-            recommendation = "**Bubble Sort** - Good for nearly sorted data"
-            reason = "Bubble sort can be very efficient when data is already nearly sorted."
-        elif memory_constraint:
-            recommendation = "**Selection Sort** - In-place sorting with minimal memory"
-            reason = "Selection sort uses constant extra space regardless of input size."
-        else:
-            recommendation = "**Quick Sort or Merge Sort** - Efficient for large datasets"
-            reason = "These divide-and-conquer algorithms provide O(n log n) average/worst-case performance."
+        recommendation = "**Quick Sort or Merge Sort** - Recommended for typical datasets"
+        reason = "For most sorting scenarios, Quick Sort (average O(n log n)) or Merge Sort (guaranteed O(n log n)) provide excellent performance. Quick Sort is often faster in practice, while Merge Sort guarantees consistent performance."
     
     elif problem_type == 'searching':
-        data_sorted = args[4] or 'unsorted'
-        search_frequency = args[5] or 'one-time'
-        
-        if data_sorted == 'unsorted':
-            if search_frequency == 'one-time':
-                recommendation = "**Sequential Search** - Simple and no preprocessing needed"
-                reason = "For one-time searches on unsorted data, sequential search is straightforward."
-            else:
-                recommendation = "**Sort first, then Binary Search** - Transform and Conquer"
-                reason = "The cost of sorting is amortized over multiple searches."
-        else:
-            recommendation = "**Binary Search** - Optimal for sorted data"
-            reason = "Binary search provides O(log n) performance on sorted data."
+        recommendation = "**Binary Search** - Optimal for sorted data"
+        reason = "Binary Search provides O(log n) performance on sorted data, making it the optimal choice for searching in sorted arrays."
     
     elif problem_type == 'optimization':
-        problem_nature = args[8] or 'unknown'
-        
-        if problem_nature == 'greedy-works':
-            recommendation = "**Greedy Algorithm** - Fast and often optimal"
-            reason = "When greedy choices lead to optimal solutions, these algorithms are very efficient."
-        elif problem_nature == 'greedy-fails':
-            recommendation = "**Dynamic Programming or Branch and Bound** - Guaranteed optimal"
-            reason = "When greedy fails, we need algorithms that explore multiple solution paths."
-        else:
-            recommendation = "**Try Greedy First, then Dynamic Programming** - Empirical approach"
-            reason = "Start with greedy for speed, then use more sophisticated methods if needed."
+        recommendation = "**Try Greedy First, then Dynamic Programming** - Empirical approach"
+        reason = "Start with greedy for speed, then use more sophisticated methods if needed. This approach balances efficiency with optimality."
     
     else:
         recommendation = "Select a problem type to get a recommendation."
