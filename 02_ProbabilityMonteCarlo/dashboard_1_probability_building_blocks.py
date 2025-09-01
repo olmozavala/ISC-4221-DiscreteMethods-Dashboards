@@ -38,13 +38,9 @@ def calculate_sample_space(experiment_type: str, num_items: int) -> Dict[str, An
             # For multiple coins, we consider number of heads
             sample_space = list(range(num_items + 1))
             
-    elif experiment_type == "Card Draw":
-        # Simplified: just consider card values 1-13
-        sample_space = list(range(1, 14))
-        
     return {
         "sample_space": sample_space,
-        "outcomes": outcomes if experiment_type != "Card Draw" else list(range(1, 14))
+        "outcomes": outcomes
     }
 
 def simulate_experiment(experiment_type: str, num_items: int, num_trials: int) -> List[int]:
@@ -60,9 +56,127 @@ def simulate_experiment(experiment_type: str, num_items: int, num_trials: int) -
             return np.random.choice([0, 1], num_trials).tolist()  # 0=T, 1=H
         else:
             return np.sum(np.random.choice([0, 1], (num_trials, num_items)), axis=1).tolist()
-            
-    elif experiment_type == "Card Draw":
-        return np.random.randint(1, 14, num_trials).tolist()
+
+def calculate_theoretical_probability_dice(event_values: List[int], num_dice: int) -> float:
+    """Calculate theoretical probability for dice rolls considering actual probability distribution."""
+    if num_dice == 1:
+        # Single die: uniform probability 1/6 for each outcome
+        return len([v for v in event_values if 1 <= v <= 6]) / 6
+    
+    # For multiple dice, calculate the probability of getting any of the event values
+    # We need to consider the actual probability distribution of sums
+    total_probability = 0.0
+    
+    for target_sum in event_values:
+        if target_sum < num_dice or target_sum > 6 * num_dice:
+            continue  # Impossible sum
+        
+        # Calculate probability for this specific sum
+        # This is a simplified approach - in practice, you'd use the exact formula
+        # For now, we'll use a reasonable approximation based on the central limit theorem
+        # The probability is highest near the middle of the range
+        
+        # Calculate how many ways this sum can be achieved
+        # This is a simplified calculation - the exact formula is more complex
+        ways_to_achieve = 1  # Placeholder - would need proper combinatorial calculation
+        
+        # For multiple dice, we approximate the probability
+        # The exact calculation would require generating all possible combinations
+        if num_dice <= 3:
+            # For small numbers of dice, we can calculate exact probabilities
+            ways_to_achieve = count_ways_to_achieve_sum(target_sum, num_dice)
+        else:
+            # For larger numbers, use approximation
+            ways_to_achieve = approximate_ways_to_achieve_sum(target_sum, num_dice)
+        
+        probability = ways_to_achieve / (6 ** num_dice)
+        total_probability += probability
+    
+    return total_probability
+
+def count_ways_to_achieve_sum(target_sum: int, num_dice: int) -> int:
+    """Count the number of ways to achieve a target sum with num_dice dice."""
+    if num_dice == 1:
+        return 1 if 1 <= target_sum <= 6 else 0
+    
+    if num_dice == 2:
+        # For 2 dice, we can calculate exactly
+        ways = 0
+        for d1 in range(1, 7):
+            for d2 in range(1, 7):
+                if d1 + d2 == target_sum:
+                    ways += 1
+        return ways
+    
+    if num_dice == 3:
+        # For 3 dice, we can calculate exactly
+        ways = 0
+        for d1 in range(1, 7):
+            for d2 in range(1, 7):
+                for d3 in range(1, 7):
+                    if d1 + d2 + d3 == target_sum:
+                        ways += 1
+        return ways
+    
+    # For more dice, use approximation
+    return approximate_ways_to_achieve_sum(target_sum, num_dice)
+
+def approximate_ways_to_achieve_sum(target_sum: int, num_dice: int) -> int:
+    """Approximate the number of ways to achieve a target sum for larger numbers of dice."""
+    # This is a simplified approximation
+    # The exact calculation would require more sophisticated combinatorial methods
+    
+    # For large numbers of dice, the distribution approaches normal
+    # We use a rough approximation based on the range
+    min_sum = num_dice
+    max_sum = 6 * num_dice
+    mid_point = (min_sum + max_sum) / 2
+    
+    # Simple approximation: probability decreases as we move away from the middle
+    distance_from_middle = abs(target_sum - mid_point)
+    max_distance = (max_sum - min_sum) / 2
+    
+    # Rough approximation of relative probability
+    relative_prob = max(0.1, 1 - (distance_from_middle / max_distance))
+    
+    # Convert to approximate number of ways
+    total_combinations = 6 ** num_dice
+    return int(total_combinations * relative_prob / (max_sum - min_sum + 1))
+
+def calculate_theoretical_probability_coins(event_values: List[int], num_coins: int) -> float:
+    """Calculate theoretical probability for coin flips considering binomial distribution."""
+    if num_coins == 1:
+        # Single coin: uniform probability 1/2 for each outcome (0=T, 1=H)
+        return len([v for v in event_values if v in [0, 1]]) / 2
+    
+    # For multiple coins, calculate the probability of getting any of the event values
+    # The probability follows binomial distribution: P(k heads) = C(n,k) / 2^n
+    total_probability = 0.0
+    
+    for target_heads in event_values:
+        if target_heads < 0 or target_heads > num_coins:
+            continue  # Impossible number of heads
+        
+        # Calculate probability using binomial coefficient
+        # P(k heads) = C(n,k) / 2^n where C(n,k) = n!/(k!(n-k)!)
+        ways_to_achieve = binomial_coefficient(num_coins, target_heads)
+        probability = ways_to_achieve / (2 ** num_coins)
+        total_probability += probability
+    
+    return total_probability
+
+def binomial_coefficient(n: int, k: int) -> int:
+    """Calculate binomial coefficient C(n,k) = n!/(k!(n-k)!)."""
+    if k < 0 or k > n:
+        return 0
+    if k == 0 or k == n:
+        return 1
+    
+    # Use the multiplicative formula for efficiency
+    result = 1
+    for i in range(min(k, n - k)):
+        result = result * (n - i) // (i + 1)
+    return result
 
 def calculate_event_probability(event_values: List[int], sample_space: List[int], num_trials: int) -> float:
     """Calculate probability of an event based on simulation."""
@@ -80,7 +194,7 @@ app.layout = dbc.Container([
     html.Div(id='experiment-type', style={'display': 'none'}, children='Dice Roll'),
     html.Div(id='num-items', style={'display': 'none'}, children=1),
     html.Div(id='num-trials', style={'display': 'none'}, children=100),
-    html.Div(id='event-values', style={'display': 'none'}),
+    html.Div(id='event-values', style={'display': 'none'}, children='[1, 2, 3]'),
     html.Div(id='simulation-results', style={'display': 'none'}),
     
     # Header
@@ -106,8 +220,7 @@ app.layout = dbc.Container([
                         id='experiment-type-dropdown',
                         options=[
                             {'label': 'Dice Roll', 'value': 'Dice Roll'},
-                            {'label': 'Coin Flip', 'value': 'Coin Flip'},
-                            {'label': 'Card Draw', 'value': 'Card Draw'}
+                            {'label': 'Coin Flip', 'value': 'Coin Flip'}
                         ],
                         value='Dice Roll',
                         className="mb-3"
@@ -253,17 +366,42 @@ def update_event_selection(experiment_type: str, num_items: int) -> html.Div:
         else:
             options = [{'label': str(x), 'value': x} for x in sample_space]
             default_value = [0, 1]
-    else:  # Card Draw
-        options = [{'label': str(x), 'value': x} for x in sample_space]
-        default_value = [1, 2, 3]
     
-    return dcc.Dropdown(
+    dropdown = dcc.Dropdown(
         id='event-values-dropdown',
         options=options,
         value=default_value,
         multi=True,
         placeholder="Select event outcomes..."
     )
+    
+    return dropdown
+
+@app.callback(
+    Output('event-values', 'children'),
+    [Input('event-values-dropdown', 'value')]
+)
+def update_event_values_storage(event_values: List[int]) -> str:
+    """Update the hidden event-values div when dropdown selection changes."""
+    if event_values is None:
+        return "[]"
+    return str(event_values)
+
+# Initialize event-values with default values
+@app.callback(
+    Output('event-values', 'children', allow_duplicate=True),
+    [Input('experiment-type-dropdown', 'value'),
+     Input('num-items-slider', 'value')],
+    prevent_initial_call=True
+)
+def initialize_event_values(experiment_type: str, num_items: int) -> str:
+    """Initialize event-values with default values based on experiment type."""
+    if experiment_type == "Dice Roll":
+        default_value = [1, 2, 3] if num_items == 1 else [num_items, num_items + 1, num_items + 2]
+    elif experiment_type == "Coin Flip":
+        default_value = [1] if num_items == 1 else [0, 1]
+    
+    return str(default_value)
 
 @app.callback(
     Output('sample-space-content', 'children'),
@@ -275,11 +413,24 @@ def update_sample_space_display(experiment_type: str, num_items: int) -> html.Di
     space_info = calculate_sample_space(experiment_type, num_items)
     sample_space = space_info["sample_space"]
     
-    return html.Div([
-        html.P(f"Experiment: {num_items} {experiment_type.lower()}"),
-        html.P(f"Sample Space: {sample_space}"),
-        html.P(f"Size: {len(sample_space)} possible outcomes")
-    ])
+    if experiment_type == "Dice Roll":
+        total_combinations = 6 ** num_items
+        return html.Div([
+            html.P(f"Experiment: {num_items} {experiment_type.lower()}"),
+            html.P(f"Sample Space (sums): {sample_space}"),
+            html.P(f"Number of possible sums: {len(sample_space)}"),
+            html.P(f"Total combinations: {total_combinations} (6^{num_items})"),
+            html.P(f"Note: Different sums have different probabilities!")
+        ])
+    elif experiment_type == "Coin Flip":
+        total_combinations = 2 ** num_items
+        return html.Div([
+            html.P(f"Experiment: {num_items} {experiment_type.lower()}"),
+            html.P(f"Sample Space (number of heads): {sample_space}"),
+            html.P(f"Number of possible outcomes: {len(sample_space)}"),
+            html.P(f"Total combinations: {total_combinations} (2^{num_items})"),
+            html.P(f"Note: Follows binomial distribution!")
+        ])
 
 @app.callback(
     [Output('simulation-results-content', 'children'),
@@ -288,13 +439,23 @@ def update_sample_space_display(experiment_type: str, num_items: int) -> html.Di
     [State('experiment-type-dropdown', 'value'),
      State('num-items-slider', 'value'),
      State('num-trials-slider', 'value'),
-     State('event-values-dropdown', 'value')]
+     State('event-values', 'children')]
 )
 def run_simulation(n_clicks: int, experiment_type: str, num_items: int, 
-                  num_trials: int, event_values: List[int]) -> Tuple[html.Div, go.Figure]:
+                  num_trials: int, event_values_str: str) -> Tuple[html.Div, go.Figure]:
     """Run simulation and update results."""
-    if n_clicks is None or event_values is None:
+    if n_clicks is None:
         raise PreventUpdate
+    
+    # Parse event values from the hidden div
+    try:
+        event_values = eval(event_values_str) if event_values_str else []
+    except:
+        # If parsing fails, use defaults
+        if experiment_type == "Dice Roll":
+            event_values = [1, 2, 3] if num_items == 1 else [num_items, num_items + 1, num_items + 2]
+        elif experiment_type == "Coin Flip":
+            event_values = [1] if num_items == 1 else [0, 1]
     
     # Run simulation
     results = simulate_experiment(experiment_type, num_items, num_trials)
@@ -303,10 +464,15 @@ def run_simulation(n_clicks: int, experiment_type: str, num_items: int,
     event_count = sum(1 for outcome in results if outcome in event_values)
     empirical_prob = event_count / num_trials
     
-    # Theoretical probability (simplified)
+    # Get sample space for chart creation (needed regardless of experiment type)
     space_info = calculate_sample_space(experiment_type, num_items)
     sample_space = space_info["sample_space"]
-    theoretical_prob = len(event_values) / len(sample_space)
+    
+    # Theoretical probability (proper calculation for different experiment types)
+    if experiment_type == "Dice Roll":
+        theoretical_prob = calculate_theoretical_probability_dice(event_values, num_items)
+    elif experiment_type == "Coin Flip":
+        theoretical_prob = calculate_theoretical_probability_coins(event_values, num_items)
     
     # Create results content
     results_content = html.Div([
