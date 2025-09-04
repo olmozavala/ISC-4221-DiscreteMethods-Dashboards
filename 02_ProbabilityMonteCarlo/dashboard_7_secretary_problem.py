@@ -145,7 +145,8 @@ def create_performance_plot(look_percentages: List[float], success_rates: List[f
     return fig
 
 def create_applicant_plot(applicants: List[float], hired_position: int, 
-                         benchmark: float, best_score: float) -> go.Figure:
+                         benchmark: float, best_score: float, applicant_order: List[float] = None, 
+                         look_percentage: float = None) -> go.Figure:
     """Create plot showing applicant scores and decision points."""
     fig = go.Figure()
     
@@ -161,11 +162,55 @@ def create_applicant_plot(applicants: List[float], hired_position: int,
     
     # Benchmark line
     fig.add_hline(y=benchmark, line_dash="dash", line_color="orange",
-                  annotation_text=f"Benchmark: {benchmark:.3f}")
+                  annotation_text=f"Benchmark: {benchmark:.3f}",
+                  annotation_position="top left")
     
     # Best score line
     fig.add_hline(y=best_score, line_dash="dash", line_color="green",
-                  annotation_text=f"Best Score: {best_score:.3f}")
+                  annotation_text=f"Best Score: {best_score:.3f}",
+                  annotation_position="top right")
+    
+    # Look phase boundary (vertical line)
+    if look_percentage is not None:
+        look_count = int(len(applicants) * look_percentage / 100)
+        if look_count > 0:
+            fig.add_vline(x=look_count, line_dash="dot", line_color="purple",
+                          annotation_text=f"Look Phase Ends: {look_percentage}%",
+                          annotation_position="top")
+    
+    # Highest value found during look phase (black triangle)
+    if applicant_order and look_percentage is not None:
+        # Calculate how many applicants to look at based on look percentage
+        n = len(applicants)
+        look_count = int(n * look_percentage / 100)
+        
+        if look_count > 0:
+            # Get candidates seen during look phase
+            look_candidates = applicant_order[:look_count]
+            
+            # Find the highest score in the look phase
+            highest_score = max(look_candidates)
+            
+            # Find the position of this highest score within the look phase
+            highest_idx = look_candidates.index(highest_score)
+            look_phase_position = highest_idx + 1  # Convert to 1-based indexing
+            
+            # Add the triangle at the correct position within the look phase
+            fig.add_trace(go.Scatter(
+                x=[look_phase_position],
+                y=[highest_score],
+                mode='markers',
+                name='Highest in Look Phase',
+                marker=dict(color='black', size=10, symbol='triangle-up')
+            ))
+            
+            # Update benchmark to match the highest score found in look phase
+            benchmark_y = highest_score
+    
+    # Benchmark line - now matches the highest score in look phase
+    fig.add_hline(y=benchmark_y, line_dash="dash", line_color="orange",
+                  annotation_text=f"Benchmark: {benchmark_y:.3f}",
+                  annotation_position="top left")
     
     # Hired position
     if hired_position <= len(applicants):
@@ -212,6 +257,92 @@ def create_rank_distribution(results: List[Dict[str, Any]]) -> go.Figure:
         yaxis_title="Frequency",
         showlegend=True,
         height=400
+    )
+    
+    return fig
+
+def create_look_phase_queue_plot(applicant_order: List[float], look_percentage: float, 
+                                benchmark: float, threshold_percentage: float = 80.0) -> go.Figure:
+    """Create plot showing the queue of candidates during look phase with selection threshold."""
+    n = len(applicant_order)
+    look_count = int(n * look_percentage / 100)
+    
+    if look_count == 0:
+        # Create empty plot if no look phase
+        fig = go.Figure()
+        fig.add_annotation(text="No look phase (0% look percentage)", 
+                          xref="paper", yref="paper", x=0.5, y=0.5, showarrow=False)
+        fig.update_layout(title="Look Phase Queue", height=400)
+        return fig
+    
+    # Get candidates seen during look phase
+    look_candidates = applicant_order[:look_count]
+    look_candidates_sorted = sorted(look_candidates, reverse=True)
+    
+    # Calculate threshold score (top 80% of seen candidates by default)
+    # For top 80%, we want the score at the 20th percentile (100% - 80%)
+    bottom_percentage = 100 - threshold_percentage
+    threshold_idx = int(len(look_candidates_sorted) * bottom_percentage / 100)
+    threshold_score = look_candidates_sorted[threshold_idx] if threshold_idx < len(look_candidates_sorted) else look_candidates_sorted[0]
+    
+    fig = go.Figure()
+    
+    # Plot look phase candidates in order they were seen
+    fig.add_trace(go.Scatter(
+        x=list(range(1, look_count + 1)),
+        y=look_candidates,
+        mode='lines+markers',
+        name='Candidates Seen',
+        line=dict(color='lightblue', width=2),
+        marker=dict(size=8, color='lightblue')
+    ))
+    
+    # Plot sorted candidates (best to worst)
+    fig.add_trace(go.Scatter(
+        x=list(range(1, look_count + 1)),
+        y=look_candidates_sorted,
+        mode='lines+markers',
+        name='Candidates Sorted (Best→Worst)',
+        line=dict(color='orange', width=2, dash='dash'),
+        marker=dict(size=8, color='orange')
+    ))
+    
+    # Benchmark line (highest seen)
+    fig.add_hline(y=benchmark, line_dash="solid", line_color="red",
+                  annotation_text=f"Benchmark: {benchmark:.3f} (Highest Seen)",
+                  annotation_position="top left")
+    
+    # Threshold line (top 80% of seen candidates)
+    fig.add_hline(y=threshold_score, line_dash="dot", line_color="purple",
+                  annotation_text=f"Top {threshold_percentage}% Threshold: {threshold_score:.3f}",
+                  annotation_position="top right")
+    
+    # Highlight the candidate that set the benchmark
+    benchmark_positions = [i+1 for i, score in enumerate(look_candidates) if abs(score - benchmark) < 1e-6]
+    if benchmark_positions:
+        fig.add_trace(go.Scatter(
+            x=benchmark_positions,
+            y=[benchmark] * len(benchmark_positions),
+            mode='markers',
+            name='Benchmark Setter',
+            marker=dict(color='red', size=12, symbol='diamond')
+        ))
+    
+    # Add selection guidance text
+    fig.add_annotation(
+        text=f"<b>Selection Strategy:</b><br>Look at first {look_count} candidates<br>Set benchmark: {benchmark:.3f}<br><br>Use top {threshold_percentage}% threshold: {threshold_score:.3f}<br>(Hire candidates above this score)",
+        xref="paper", yref="paper", x=0.02, y=0.98,
+        showarrow=False, bgcolor="rgba(255,255,255,0.8)",
+        bordercolor="black", borderwidth=1
+    )
+    
+    fig.update_layout(
+        title=f"Look Phase Queue Analysis (First {look_count} Candidates)",
+        xaxis_title="Position in Look Phase",
+        yaxis_title="Quality Score",
+        showlegend=True,
+        height=400,
+        xaxis=dict(range=[0.5, look_count + 0.5])
     )
     
     return fig
@@ -270,6 +401,17 @@ app.layout = dbc.Container([
                         step=100,
                         value=1000,
                         marks={100: '100', 1000: '1K', 5000: '5K', 10000: '10K'},
+                        className="mb-3"
+                    ),
+                    
+                    html.Label("Selection Threshold (%):", className="form-label"),
+                    dcc.Slider(
+                        id='threshold-slider',
+                        min=50,
+                        max=95,
+                        step=5,
+                        value=80,
+                        marks={50: '50%', 60: '60%', 70: '70%', 80: '80%', 90: '90%', 95: '95%'},
                         className="mb-3"
                     ),
                     
@@ -343,7 +485,17 @@ app.layout = dbc.Container([
                                     dcc.Graph(id='rank-distribution-plot')
                                 ])
                             ])
-                        ])
+                        ], width=6),
+                        dbc.Col([
+                            dbc.Card([
+                                dbc.CardHeader([
+                                    html.H5("🔍 Look Phase Queue Analysis", className="mb-0")
+                                ]),
+                                dbc.CardBody([
+                                    dcc.Graph(id='look-phase-queue-plot')
+                                ])
+                            ])
+                        ], width=6)
                     ], className="mb-3")
                 ], label="Simulation Results", tab_id="tab-results"),
                 
@@ -406,12 +558,14 @@ app.layout = dbc.Container([
 # Callbacks
 @app.callback(
     [Output('single-simulation-results', 'children'),
-     Output('applicant-plot', 'figure')],
+     Output('applicant-plot', 'figure'),
+     Output('look-phase-queue-plot', 'figure')],
     [Input('run-single-btn', 'n_clicks')],
     [State('n-applicants-slider', 'value'),
-     State('look-percentage-slider', 'value')]
+     State('look-percentage-slider', 'value'),
+     State('threshold-slider', 'value')]
 )
-def run_single_simulation(n_clicks: int, n_applicants: int, look_percentage: float) -> Tuple[html.Div, go.Figure]:
+def run_single_simulation(n_clicks: int, n_applicants: int, look_percentage: float, threshold_percentage: float) -> Tuple[html.Div, go.Figure, go.Figure]:
     """Run single simulation and display results."""
     if n_clicks is None:
         raise PreventUpdate
@@ -464,9 +618,14 @@ def run_single_simulation(n_clicks: int, n_applicants: int, look_percentage: flo
     
     # Create applicant plot
     applicant_fig = create_applicant_plot(applicants, result['hired_position'], 
-                                        result['benchmark'], result['best_score'])
+                                        result['benchmark'], result['best_score'], 
+                                        result['applicant_order'], look_percentage)
     
-    return results_content, applicant_fig
+    # Create look phase queue plot
+    queue_fig = create_look_phase_queue_plot(result['applicant_order'], look_percentage, 
+                                           result['benchmark'], threshold_percentage)
+    
+    return results_content, applicant_fig, queue_fig
 
 @app.callback(
     [Output('multiple-simulation-stats', 'children'),

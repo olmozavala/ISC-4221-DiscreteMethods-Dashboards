@@ -68,13 +68,13 @@ def simulate_geometric_brownian_motion(n_steps: int, dt: float, initial_price: f
         'prices': prices
     }
 
-def calculate_statistics(positions: List[List[float]], time: List[float], volatility: float = 1.0) -> Dict[str, float]:
+def calculate_statistics(x_positions: List[List[float]], y_positions: List[List[float]], time: List[float], volatility: float = 1.0) -> Dict[str, float]:
     """Calculate statistics for Brownian motion paths."""
     # Calculate distances from origin
     distances = []
-    for particle_positions in positions:
-        x_pos = particle_positions[0]
-        y_pos = particle_positions[1]
+    for i in range(len(x_positions)):
+        x_pos = x_positions[i]
+        y_pos = y_positions[i]
         final_distance = np.sqrt(x_pos[-1]**2 + y_pos[-1]**2)
         distances.append(final_distance)
     
@@ -460,7 +460,7 @@ def run_brownian_motion(n_clicks: int, n_steps: int, dt: float, drift: float,
     simulation_data = simulate_brownian_motion(n_steps, dt, drift, volatility, n_particles)
     
     # Calculate statistics
-    stats = calculate_statistics(simulation_data['x_positions'], simulation_data['time'], volatility)
+    stats = calculate_statistics(simulation_data['x_positions'], simulation_data['y_positions'], simulation_data['time'], volatility)
     
     # Create statistics content
     stats_content = html.Div([
@@ -500,7 +500,7 @@ def run_brownian_motion(n_clicks: int, n_steps: int, dt: float, drift: float,
 def run_geometric_brownian_motion(n_clicks: int, n_steps: int, dt: float, 
                                  drift: float, volatility: float) -> Tuple[str, go.Figure, html.Div]:
     """Run geometric Brownian motion simulation."""
-    if n_clicks is None:
+    if n_clicks is None or n_clicks == 0:
         raise PreventUpdate
     
     # Run simulation
@@ -525,6 +525,28 @@ def run_geometric_brownian_motion(n_clicks: int, n_steps: int, dt: float,
     ])
     
     return str(gbm_data), stock_fig, stats_content
+
+# Callback to switch tabs when buttons are clicked
+@app.callback(
+    Output('tabs', 'active_tab'),
+    [Input('run-bm-btn', 'n_clicks'),
+     Input('run-gbm-btn', 'n_clicks')],
+    prevent_initial_call=True
+)
+def switch_tab_on_button_click(bm_clicks: int, gbm_clicks: int) -> str:
+    """Switch to appropriate tab when simulation buttons are clicked."""
+    ctx = callback_context
+    if not ctx.triggered:
+        raise PreventUpdate
+    
+    button_id = ctx.triggered[0]['prop_id'].split('.')[0]
+    
+    if button_id == 'run-bm-btn':
+        return 'tab-bm'
+    elif button_id == 'run-gbm-btn':
+        return 'tab-gbm'
+    
+    raise PreventUpdate
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=8052)

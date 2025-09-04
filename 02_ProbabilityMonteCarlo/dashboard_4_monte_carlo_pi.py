@@ -51,6 +51,17 @@ def calculate_confidence_interval(pi_estimate: float, n_total: int, confidence: 
     
     return ci_lower, ci_upper
 
+def is_pi_in_confidence_interval(ci_lower: float, ci_upper: float) -> bool:
+    """Check if the true π value falls within the confidence interval."""
+    return ci_lower <= math.pi <= ci_upper
+
+def get_confidence_interval_color(ci_lower: float, ci_upper: float) -> str:
+    """Get the color for the confidence interval card based on whether π is inside."""
+    if is_pi_in_confidence_interval(ci_lower, ci_upper):
+        return "success"  # Green - π is inside the interval
+    else:
+        return "danger"   # Red - π is outside the interval
+
 def create_scatter_plot(x_coords: List[float], y_coords: List[float], n_inside: int) -> go.Figure:
     """Create scatter plot showing points inside/outside circle."""
     fig = go.Figure()
@@ -398,9 +409,19 @@ def update_estimation_results(x_coords: str, y_coords: str, confidence: float) -
                 dbc.Card([
                     dbc.CardBody([
                         html.H4(f"{ci_lower:.3f} - {ci_upper:.3f}", className="card-title"),
-                        html.P(f"{int(confidence*100)}% Confidence Interval", className="card-text")
+                        html.P(f"{int(confidence*100)}% Confidence Interval", className="card-text"),
+                        html.P(
+                            "✅ π Inside" if is_pi_in_confidence_interval(ci_lower, ci_upper) else "❌ π Outside",
+                            className="card-text",
+                            style={"fontSize": "0.9em", "fontWeight": "bold"}
+                        ),
+                        html.P(
+                            f"True π: {math.pi:.6f}",
+                            className="card-text",
+                            style={"fontSize": "0.8em", "color": "gray"}
+                        )
                     ])
-                ], color="success", outline=True)
+                ], color=get_confidence_interval_color(ci_lower, ci_upper), outline=True)
             ], width=3)
         ])
     ])
